@@ -45,28 +45,29 @@ class HealthConnectManager(private val context: Context) {
         val since = now.minus(24, ChronoUnit.HOURS)
         val timeRange = TimeRangeFilter.between(since, now)
 
-        // The KSIX Ring writes all records starting at midnight (same startTime),
-        // so sorting by startTime descending doesn't find the newest one.
-        // Instead: read several records and pick the one with the latest endTime.
+        // The KSIX Ring writes cumulative records that all start at midnight.
+        // Each new record is a superset of the previous one, so flattening all
+        // records gives duplicate samples. Fix: flatten → deduplicate by timestamp
+        // → sort → take the 5 most recent unique readings.
         val heartRates: List<Int> = runCatching {
             client.readRecords(
                 ReadRecordsRequest(
                     recordType = HeartRateRecord::class,
                     timeRangeFilter = timeRange,
                     ascendingOrder = false,
-                    pageSize = 10
+                    pageSize = 20
                 )
             ).records
-                .maxByOrNull { it.endTime }   // ← pick record with latest end time
-                ?.samples
-                ?.sortedByDescending { it.time }
-                ?.take(5)
-                ?.map { it.beatsPerMinute.toInt() }
-                ?.reversed()
-                ?: emptyList()
+                .flatMap { it.samples }
+                .distinctBy { it.time }           // remove duplicates across overlapping records
+                .sortedByDescending { it.time }   // most recent first
+                .take(5)
+                .map { it.beatsPerMinute.toInt() }
+                .reversed()                        // oldest → newest for left-to-right chart
         }.getOrElse { emptyList() }
 
-        // Same fix for sleep — pick session with latest endTime
+        // Same pattern for sleep: pick the session with the latest end time
+        // (the most complete record) and read its stages
         val session = runCatching {
             client.readRecords(
                 ReadRecordsRequest(
@@ -76,7 +77,7 @@ class HealthConnectManager(private val context: Context) {
                     pageSize = 10
                 )
             ).records
-                .maxByOrNull { it.endTime }   // ← pick record with latest end time
+                .maxByOrNull { it.endTime }
         }.getOrNull()
 
         val sleepStages: List<SleepStageData> = session?.stages?.map { stage ->

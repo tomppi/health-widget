@@ -12,12 +12,13 @@ An Android home screen widget that reads **Heart Rate**, **Blood Oxygen Saturati
 
 ## Features
 
-- 🏠 **Home screen widget** — glanceable metrics without opening the app
-- ❤️ Heart rate (bpm)
-- 🫁 Blood oxygen saturation (SpO₂ %)
-- 🌡️ Body temperature (°C)
-- 🔄 Auto-refreshes every 15 minutes via WorkManager
-- 🔒 Permission flow handled in-app with Health Connect's native contract
+- 🏠 **Home screen widget** with transparent background
+- ❤️ **Heart rate graph** — last 5 readings plotted as a line chart
+- 🌙 **Sleep hypnogram** — light and deep sleep stages visualised over time
+- 🔄 **Auto-refreshes every 15 minutes** via WorkManager
+- 📲 **Instant refresh** when the app is opened or brought to foreground
+- 🔋 **Battery optimisation exemption** — prompts user on first launch for reliable background updates
+- 🔒 Health Connect permission flow handled in-app
 
 ---
 

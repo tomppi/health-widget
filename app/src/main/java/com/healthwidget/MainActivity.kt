@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
@@ -60,6 +61,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         requestBatteryOptimisationExemption()
+        startHealthWidgetService()
 
         binding.btnRefresh.setOnClickListener {
             lifecycleScope.launch { loadHealthData() }
@@ -83,6 +85,15 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 if (healthManager.hasAllPermissions()) loadHealthData()
             }
+        }
+    }
+
+    private fun startHealthWidgetService() {
+        val intent = Intent(this, HealthWidgetService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
         }
     }
 

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,7 +12,9 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -41,6 +44,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        // Whether granted or denied, start the service anyway —
+        // on Android 12 and below no permission is needed
+        startHealthWidgetService()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -61,7 +72,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         requestBatteryOptimisationExemption()
-        startHealthWidgetService()
+        requestNotificationPermissionAndStartService()
 
         binding.btnRefresh.setOnClickListener {
             lifecycleScope.launch { loadHealthData() }
@@ -85,6 +96,25 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 if (healthManager.hasAllPermissions()) loadHealthData()
             }
+        }
+    }
+
+    private fun requestNotificationPermissionAndStartService() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ requires explicit notification permission
+            if (ContextCompat.checkSelfPermission(
+                    this, android.Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                startHealthWidgetService()
+            } else {
+                notificationPermissionLauncher.launch(
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                )
+            }
+        } else {
+            // Android 12 and below — no permission needed
+            startHealthWidgetService()
         }
     }
 

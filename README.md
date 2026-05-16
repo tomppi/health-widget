@@ -1,6 +1,6 @@
 # Health Connect Widget
 
-An Android home screen widget that reads **Heart Rate**, **Blood Oxygen Saturation (SpO2)**, and **Body Temperature** live from [Google Health Connect](https://developer.android.com/health-and-fitness/guides/health-connect).
+An Android home screen widget that reads **Heart rate**, **Sleep Data** live from [Google Health Connect](https://developer.android.com/health-and-fitness/guides/health-connect).
 
 ---
 

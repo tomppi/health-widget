@@ -61,8 +61,9 @@ Health Connect **does not work on the emulator** for live biometric data. Connec
 
 On first launch the app triggers the Health Connect permission dialog for:
 - `READ_HEART_RATE`
-- `READ_OXYGEN_SATURATION`
-- `READ_BODY_TEMPERATURE`
+- `READ_SLEEP`
+- `RECEIVE_BOOT_COMPLETED`
+- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
 
 ### 6. Add the widget
 
@@ -103,7 +104,7 @@ app/src/main/
 MainActivity
   └─ checks permissions via HealthConnectManager
        └─ if granted → reads latest records (last 24h) from Health Connect
-            └─ HeartRateRecord, OxygenSaturationRecord, BodyTemperatureRecord
+            └─ HeartRateRecord, ReadSleep
 
 HealthAppWidget (AppWidgetProvider)
   └─ onUpdate → HealthAppWidget.updateWidget()
@@ -136,8 +137,6 @@ Health Connect reads from whatever sources are writing to it on the device:
 - Samsung Health
 - Any app that writes to Health Connect
 
-Body temperature data is less commonly synced automatically — you may need an app that supports it (e.g., some smart thermometers or Withings devices).
-
 ---
 
 ## Permissions
@@ -146,8 +145,9 @@ Declared in `AndroidManifest.xml`:
 
 ```xml
 <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
-<uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION" />
-<uses-permission android:name="android.permission.health.READ_BODY_TEMPERATURE" />
+<uses-permission android:name="android.permission.health.READ_SLEEP" />
+<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
 ```
 
 Also declared in `res/xml/health_permissions.xml` as required by the Health Connect SDK.

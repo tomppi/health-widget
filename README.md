@@ -10,6 +10,8 @@ An Android home screen widget that reads **Heart Rate**, **Blood Oxygen Saturati
 
 ---
 
+⚠️ **Estimated REM data**: my smart device does not report REM sleep to Health Connect. The app estimates REM by filling gaps between recorded light and deep sleep stages. This is not real REM data and should not be used for medical purposes.
+
 ## Features
 
 - 🏠 **Home screen widget** with transparent background

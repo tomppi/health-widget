@@ -4,18 +4,11 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import androidx.health.connect.client.records.SleepSessionRecord
 
-/**
- * Draws a hypnogram — a step chart showing sleep stage depth over time.
- * Deep sleep at the bottom, awake at the top, same as standard sleep charts.
- *
- * The companion [drawChartOnCanvas] function is shared with the widget bitmap renderer.
- */
 class SleepChartView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -32,12 +25,11 @@ class SleepChartView @JvmOverloads constructor(
 
     companion object {
 
-        // Y level for each stage type (0 = top/awake, 3 = bottom/deep)
         private fun stageLevel(type: Int): Int = when (type) {
-            SleepSessionRecord.STAGE_TYPE_AWAKE       -> 0
-            SleepSessionRecord.STAGE_TYPE_OUT_OF_BED  -> 0
+            SleepSessionRecord.STAGE_TYPE_AWAKE,
+            SleepSessionRecord.STAGE_TYPE_OUT_OF_BED -> 0
             SleepSessionRecord.STAGE_TYPE_REM         -> 1
-            SleepSessionRecord.STAGE_TYPE_LIGHT       -> 2
+            SleepSessionRecord.STAGE_TYPE_LIGHT,
             SleepSessionRecord.STAGE_TYPE_SLEEPING    -> 2
             SleepSessionRecord.STAGE_TYPE_DEEP        -> 3
             else                                      -> 2
@@ -62,12 +54,6 @@ class SleepChartView @JvmOverloads constructor(
         private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#99FFFFFF")
             textSize = 22f
-            textAlign = Paint.Align.LEFT
-        }
-
-        private val legendPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            textSize = 20f
         }
 
         fun drawChartOnCanvas(
@@ -81,61 +67,58 @@ class SleepChartView @JvmOverloads constructor(
                 return
             }
 
-            val padLeft   = 8f
+            val padLeft   = 48f   // room for labels
             val padRight  = 8f
-            val padTop    = 8f
-            val padBottom = 28f  // room for time labels
+            val padTop    = 4f
+            val padBottom = 24f   // room for time labels
 
             val chartW = w - padLeft - padRight
             val chartH = h - padTop - padBottom
+            val levels  = 4f
+            val levelH  = chartH / levels
 
-            val totalMs  = stages.maxOf { it.endMs }.toFloat().coerceAtLeast(1f)
-            val levels   = 4f // awake, REM, light, deep
-            val levelH   = chartH / levels
+            val totalMs = stages.maxOf { it.endMs }.toFloat().coerceAtLeast(1f)
 
             val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
-            // Draw each stage as a rounded bar at its depth level
+            // Draw each stage as a bar occupying only its own row
             stages.forEach { stage ->
-                val x1 = padLeft + (stage.startMs / totalMs) * chartW
-                val x2 = padLeft + (stage.endMs   / totalMs) * chartW
+                val x1    = padLeft + (stage.startMs / totalMs) * chartW
+                val x2    = padLeft + (stage.endMs   / totalMs) * chartW
                 val level = stageLevel(stage.type)
+
+                // ✅ y2 = bottom of this level's row only, not the full chart bottom
                 val y1 = padTop + level * levelH
-                val y2 = padTop + chartH  // bars always extend to the bottom
+                val y2 = padTop + (level + 1) * levelH
 
                 barPaint.color = stageColor(stage.type)
-                barPaint.alpha = 220
-
-                val rect = RectF(x1, y1, x2.coerceAtLeast(x1 + 2f), y2)
+                val rect = RectF(x1, y1 + 1f, x2.coerceAtLeast(x1 + 2f), y2 - 1f)
                 canvas.drawRoundRect(rect, 3f, 3f, barPaint)
             }
 
-            // Divider lines between levels
+            // Divider lines between rows
             val gridPaint = Paint().apply {
                 color = Color.parseColor("#22FFFFFF")
                 strokeWidth = 1f
             }
-            for (i in 1..3) {
+            for (i in 0..4) {
                 val y = padTop + i * levelH
                 canvas.drawLine(padLeft, y, padLeft + chartW, y, gridPaint)
             }
 
             // Y-axis labels
-            val yLabels = listOf("Awake", "REM", "Light", "Deep")
-            yLabels.forEachIndexed { i, label ->
-                val y = padTop + i * levelH + labelPaint.textSize + 2f
-                canvas.drawText(label, padLeft + 2f, y, labelPaint)
+            listOf("Awake", "REM", "Light", "Deep").forEachIndexed { i, label ->
+                val y = padTop + i * levelH + levelH * 0.65f
+                canvas.drawText(label, 2f, y, labelPaint)
             }
 
-            // X-axis: start and end time labels
-            val totalHours  = (totalMs / 60_000 / 60).toInt()
-            val totalMins   = (totalMs / 60_000 % 60).toInt()
-            val durationTxt = "${totalHours}h ${totalMins}m"
-
+            // X-axis duration labels
             val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#66FFFFFF")
                 textSize = 20f
             }
+            val totalMins  = (totalMs / 60_000).toLong()
+            val durationTxt = "${totalMins / 60}h ${totalMins % 60}m"
             canvas.drawText("0h", padLeft, h - 4f, timePaint)
             timePaint.textAlign = Paint.Align.RIGHT
             canvas.drawText(durationTxt, padLeft + chartW, h - 4f, timePaint)

@@ -1,10 +1,13 @@
 package com.healthwidget
 
+import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -56,6 +59,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        requestBatteryOptimisationExemption()
+
         binding.btnRefresh.setOnClickListener {
             lifecycleScope.launch { loadHealthData() }
         }
@@ -81,6 +86,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("BatteryLife")
+    private fun requestBatteryOptimisationExemption() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            startActivity(
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+            )
+        }
+    }
+
     private fun checkPermissionsAndLoad() {
         lifecycleScope.launch {
             if (healthManager.hasAllPermissions()) {
@@ -100,8 +117,6 @@ class MainActivity : AppCompatActivity() {
 
             binding.heartRateChart.heartRates = data.heartRates
             binding.sleepChart.sleepStages    = data.sleepStages
-
-            // Show total sleep duration as subtitle
             binding.tvSleepDuration.text = data.sleepDurationMinutes?.let {
                 val h = it / 60; val m = it % 60; "${h}h ${m}m total"
             } ?: "No sleep data"

@@ -63,12 +63,13 @@
             </intent-filter>
         </receiver>
 
-        <!-- Receives AlarmManager ticks to update the widget -->
         <receiver
             android:name=".widget.AlarmReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.healthwidget.WIDGET_ALARM" />
+                <!-- Refresh widget every time the user unlocks / returns to home screen -->
+                <action android:name="android.intent.action.USER_PRESENT" />
             </intent-filter>
         </receiver>
 

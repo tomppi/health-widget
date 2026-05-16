@@ -45,21 +45,26 @@ class HealthConnectManager(private val context: Context) {
         val since = now.minus(24, ChronoUnit.HOURS)
         val timeRange = TimeRangeFilter.between(since, now)
 
+        // The KSIX Ring writes one cumulative record per sync starting at midnight.
+        // All records share the same startTime, so sorting by startTime is unreliable.
+        // pageSize = 500 covers a full 24h of 5-minute syncs (max ~288 records),
+        // then maxByOrNull picks the record that ends latest = most complete data.
         val heartRates: List<Int> = runCatching {
             client.readRecords(
                 ReadRecordsRequest(
                     recordType = HeartRateRecord::class,
                     timeRangeFilter = timeRange,
                     ascendingOrder = false,
-                    pageSize = 20
+                    pageSize = 500
                 )
             ).records
-                .flatMap { it.samples }
-                .distinctBy { it.time }
-                .sortedByDescending { it.time }
-                .take(5)
-                .map { it.beatsPerMinute.toInt() }
-                .reversed()
+                .maxByOrNull { it.endTime }
+                ?.samples
+                ?.sortedByDescending { it.time }
+                ?.take(5)
+                ?.map { it.beatsPerMinute.toInt() }
+                ?.reversed()
+                ?: emptyList()
         }.getOrElse { emptyList() }
 
         val session = runCatching {
@@ -68,7 +73,7 @@ class HealthConnectManager(private val context: Context) {
                     recordType = SleepSessionRecord::class,
                     timeRangeFilter = timeRange,
                     ascendingOrder = false,
-                    pageSize = 10
+                    pageSize = 500
                 )
             ).records
                 .maxByOrNull { it.endTime }
@@ -82,9 +87,6 @@ class HealthConnectManager(private val context: Context) {
             )
         } ?: emptyList()
 
-        // Fill gaps between recorded stages with estimated REM sleep.
-        // The KSIX Ring does not report REM data — gaps in the recording
-        // typically correspond to transitions where REM is most likely.
         val sleepStages = fillGapsWithRem(rawStages)
 
         val sleepDurationMinutes: Long? = session?.let {
@@ -98,37 +100,24 @@ class HealthConnectManager(private val context: Context) {
         )
     }
 
-    /**
-     * Finds gaps between sleep stages longer than 2 minutes and fills them
-     * with [SleepSessionRecord.STAGE_TYPE_REM]. The KSIX Ring only records
-     * light and deep sleep — REM is estimated from the gaps between them.
-     */
     private fun fillGapsWithRem(stages: List<SleepStageData>): List<SleepStageData> {
         if (stages.size < 2) return stages
-
         val sorted = stages.sortedBy { it.startMs }
         val result = mutableListOf<SleepStageData>()
-
         sorted.forEachIndexed { i, stage ->
             if (i > 0) {
                 val gapStart = sorted[i - 1].endMs
                 val gapEnd   = stage.startMs
-                val gapMs    = gapEnd - gapStart
-
-                // Only fill gaps longer than 2 minutes to ignore tiny overlaps
-                if (gapMs > 2 * 60 * 1000L) {
-                    result.add(
-                        SleepStageData(
-                            startMs = gapStart,
-                            endMs   = gapEnd,
-                            type    = SleepSessionRecord.STAGE_TYPE_REM
-                        )
-                    )
+                if (gapEnd - gapStart > 2 * 60 * 1000L) {
+                    result.add(SleepStageData(
+                        startMs = gapStart,
+                        endMs   = gapEnd,
+                        type    = SleepSessionRecord.STAGE_TYPE_REM
+                    ))
                 }
             }
             result.add(stage)
         }
-
         return result
     }
 }

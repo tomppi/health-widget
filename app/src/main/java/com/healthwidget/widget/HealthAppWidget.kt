@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.widget.RemoteViews
 import com.healthwidget.HealthConnectManager
+import com.healthwidget.HealthData
 import com.healthwidget.HeartRateChartView
 import com.healthwidget.SleepChartView
 import com.healthwidget.SleepStageData
@@ -44,8 +45,6 @@ class HealthAppWidget : AppWidgetProvider() {
 
     companion object {
 
-        // Reduced from 600x140 to lower memory usage and avoid bitmaps
-        // being reclaimed under memory pressure
         private const val CHART_W = 360
         private const val CHART_H = 100
 
@@ -76,17 +75,37 @@ class HealthAppWidget : AppWidgetProvider() {
             return bmp
         }
 
-        fun updateWidget(
+        private fun applyDataToViews(
             context: Context,
-            appWidgetManager: AppWidgetManager,
-            appWidgetId: Int
+            views: RemoteViews,
+            data: HealthData
         ) {
-            showRefreshing(context, appWidgetManager, appWidgetId)
-            CoroutineScope(Dispatchers.IO).launch {
-                updateWidgetData(context, appWidgetManager, appWidgetId)
-            }
+            val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+            views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(data.heartRates))
+            views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(data.sleepStages))
+            views.setTextViewText(R.id.tv_updated, "Updated ${fmt.format(Date())}")
         }
 
+        /**
+         * Called from MainActivity — uses data already fetched by the app
+         * so the widget shows exactly the same readings the app just displayed.
+         * No second Health Connect read.
+         */
+        fun updateWidgetWithData(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int,
+            data: HealthData
+        ) {
+            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            applyDataToViews(context, views, data)
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+
+        /**
+         * Called from WorkManager / AlarmReceiver / Service — reads fresh data
+         * from Health Connect because there is no pre-fetched data available.
+         */
         suspend fun updateWidgetData(
             context: Context,
             appWidgetManager: AppWidgetManager,
@@ -106,9 +125,7 @@ class HealthAppWidget : AppWidgetProvider() {
 
             runCatching {
                 val data = manager.getLatestHealthData()
-                views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(data.heartRates))
-                views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(data.sleepStages))
-                views.setTextViewText(R.id.tv_updated, "Updated ${fmt.format(Date())}")
+                applyDataToViews(context, views, data)
             }.onFailure {
                 views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(emptyList()))
                 views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(emptyList()))

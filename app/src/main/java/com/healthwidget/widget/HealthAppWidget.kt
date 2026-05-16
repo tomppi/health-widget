@@ -29,14 +29,19 @@ class HealthAppWidget : AppWidgetProvider() {
         appWidgetIds.forEach { id -> showRefreshing(context, appWidgetManager, id) }
         HealthWidgetUpdateWorker.runNow(context)
         HealthWidgetUpdateWorker.schedule(context)
+        AlarmReceiver.schedule(context)
     }
 
     override fun onEnabled(context: Context) {
+        // First widget added — start both schedulers
         HealthWidgetUpdateWorker.schedule(context)
+        AlarmReceiver.schedule(context)
     }
 
     override fun onDisabled(context: Context) {
+        // Last widget removed — stop both schedulers
         HealthWidgetUpdateWorker.cancel(context)
+        AlarmReceiver.cancel(context)
     }
 
     companion object {

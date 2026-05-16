@@ -9,20 +9,16 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
-import com.healthwidget.HealthConnectManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/**
- * Receives AlarmManager ticks every 15 minutes and updates all widget instances.
- * AlarmManager is much harder for Android to kill than WorkManager, making it
- * a reliable fallback when background processes are aggressively killed.
- */
 class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != ACTION) return
+        // Fire on both our alarm tick AND every time the user unlocks/returns
+        // to the home screen — this fixes blank widgets after memory pressure
+        if (intent.action != ACTION && intent.action != Intent.ACTION_USER_PRESENT) return
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val widgetIds = appWidgetManager.getAppWidgetIds(
@@ -30,12 +26,10 @@ class AlarmReceiver : BroadcastReceiver() {
         )
 
         if (widgetIds.isEmpty()) {
-            // No widgets pinned — cancel the alarm to save battery
             cancel(context)
             return
         }
 
-        // Use goAsync() to give the BroadcastReceiver extra time to complete
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -47,13 +41,15 @@ class AlarmReceiver : BroadcastReceiver() {
             }
         }
 
-        // Re-schedule the next alarm
-        schedule(context)
+        // Only re-schedule the timed alarm (not on USER_PRESENT)
+        if (intent.action == ACTION) {
+            schedule(context)
+        }
     }
 
     companion object {
         const val ACTION = "com.healthwidget.WIDGET_ALARM"
-        private const val INTERVAL_MS = 15 * 60 * 1000L // 15 minutes
+        private const val INTERVAL_MS = 15 * 60 * 1000L
 
         private fun getPendingIntent(context: Context): PendingIntent {
             val intent = Intent(ACTION).apply { setPackage(context.packageName) }
@@ -68,7 +64,6 @@ class AlarmReceiver : BroadcastReceiver() {
             val pi = getPendingIntent(context)
             val triggerAt = SystemClock.elapsedRealtime() + INTERVAL_MS
 
-            // Use setExactAndAllowWhileIdle so the alarm fires even in Doze mode
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi)
             } else {

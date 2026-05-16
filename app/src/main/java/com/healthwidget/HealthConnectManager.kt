@@ -45,10 +45,6 @@ class HealthConnectManager(private val context: Context) {
         val since = now.minus(24, ChronoUnit.HOURS)
         val timeRange = TimeRangeFilter.between(since, now)
 
-        // The KSIX Ring writes cumulative records that all start at midnight.
-        // Each new record is a superset of the previous one, so flattening all
-        // records gives duplicate samples. Fix: flatten → deduplicate by timestamp
-        // → sort → take the 5 most recent unique readings.
         val heartRates: List<Int> = runCatching {
             client.readRecords(
                 ReadRecordsRequest(
@@ -59,15 +55,13 @@ class HealthConnectManager(private val context: Context) {
                 )
             ).records
                 .flatMap { it.samples }
-                .distinctBy { it.time }           // remove duplicates across overlapping records
-                .sortedByDescending { it.time }   // most recent first
+                .distinctBy { it.time }
+                .sortedByDescending { it.time }
                 .take(5)
                 .map { it.beatsPerMinute.toInt() }
-                .reversed()                        // oldest → newest for left-to-right chart
+                .reversed()
         }.getOrElse { emptyList() }
 
-        // Same pattern for sleep: pick the session with the latest end time
-        // (the most complete record) and read its stages
         val session = runCatching {
             client.readRecords(
                 ReadRecordsRequest(
@@ -80,13 +74,18 @@ class HealthConnectManager(private val context: Context) {
                 .maxByOrNull { it.endTime }
         }.getOrNull()
 
-        val sleepStages: List<SleepStageData> = session?.stages?.map { stage ->
+        val rawStages: List<SleepStageData> = session?.stages?.map { stage ->
             SleepStageData(
                 startMs = ChronoUnit.MILLIS.between(session.startTime, stage.startTime),
                 endMs   = ChronoUnit.MILLIS.between(session.startTime, stage.endTime),
                 type    = stage.stage
             )
         } ?: emptyList()
+
+        // Fill gaps between recorded stages with estimated REM sleep.
+        // The KSIX Ring does not report REM data — gaps in the recording
+        // typically correspond to transitions where REM is most likely.
+        val sleepStages = fillGapsWithRem(rawStages)
 
         val sleepDurationMinutes: Long? = session?.let {
             ChronoUnit.MINUTES.between(it.startTime, it.endTime)
@@ -97,5 +96,39 @@ class HealthConnectManager(private val context: Context) {
             sleepStages          = sleepStages,
             sleepDurationMinutes = sleepDurationMinutes
         )
+    }
+
+    /**
+     * Finds gaps between sleep stages longer than 2 minutes and fills them
+     * with [SleepSessionRecord.STAGE_TYPE_REM]. The KSIX Ring only records
+     * light and deep sleep — REM is estimated from the gaps between them.
+     */
+    private fun fillGapsWithRem(stages: List<SleepStageData>): List<SleepStageData> {
+        if (stages.size < 2) return stages
+
+        val sorted = stages.sortedBy { it.startMs }
+        val result = mutableListOf<SleepStageData>()
+
+        sorted.forEachIndexed { i, stage ->
+            if (i > 0) {
+                val gapStart = sorted[i - 1].endMs
+                val gapEnd   = stage.startMs
+                val gapMs    = gapEnd - gapStart
+
+                // Only fill gaps longer than 2 minutes to ignore tiny overlaps
+                if (gapMs > 2 * 60 * 1000L) {
+                    result.add(
+                        SleepStageData(
+                            startMs = gapStart,
+                            endMs   = gapEnd,
+                            type    = SleepSessionRecord.STAGE_TYPE_REM
+                        )
+                    )
+                }
+            }
+            result.add(stage)
+        }
+
+        return result
     }
 }

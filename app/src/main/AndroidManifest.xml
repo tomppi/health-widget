@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
@@ -44,6 +46,12 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Foreground service -->
+        <service
+            android:name=".HealthWidgetService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
         <receiver
             android:name=".widget.HealthAppWidget"
             android:exported="true">
@@ -68,7 +76,6 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.healthwidget.WIDGET_ALARM" />
-                <!-- Refresh widget every time the user unlocks / returns to home screen -->
                 <action android:name="android.intent.action.USER_PRESENT" />
             </intent-filter>
         </receiver>

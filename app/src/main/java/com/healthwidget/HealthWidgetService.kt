@@ -41,12 +41,11 @@ class HealthWidgetService : Service() {
     }
 
     private fun buildNotification(): Notification =
-        Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Health Widget running")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setOngoing(true)
-            .setSilent(true)
-            .build()
+    Notification.Builder(this, CHANNEL_ID)
+        .setContentTitle("Health Widget running")
+        .setSmallIcon(R.drawable.ic_launcher_foreground)
+        .setOngoing(true)
+        .build()
 
     companion object {
         private const val CHANNEL_ID     = "health_widget_service"

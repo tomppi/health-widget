@@ -26,39 +26,25 @@ class HealthAppWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        appWidgetIds.forEach { id -> updateWidget(context, appWidgetManager, id) }
+        appWidgetIds.forEach { id -> showRefreshing(context, appWidgetManager, id) }
+        HealthWidgetUpdateWorker.runNow(context)
         HealthWidgetUpdateWorker.schedule(context)
     }
 
-    override fun onEnabled(context: Context) { HealthWidgetUpdateWorker.schedule(context) }
-    override fun onDisabled(context: Context) { HealthWidgetUpdateWorker.cancel(context) }
+    override fun onEnabled(context: Context) {
+        HealthWidgetUpdateWorker.schedule(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        HealthWidgetUpdateWorker.cancel(context)
+    }
 
     companion object {
 
         private const val CHART_W = 600
         private const val CHART_H = 140
 
-        private fun heartBitmap(heartRates: List<Int>): Bitmap {
-            val bmp = Bitmap.createBitmap(CHART_W, CHART_H, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bmp)
-            canvas.drawColor(Color.parseColor("#0D1525"))
-            HeartRateChartView.drawChartOnCanvas(
-                canvas, heartRates, CHART_W.toFloat(), CHART_H.toFloat()
-            )
-            return bmp
-        }
-
-        private fun sleepBitmap(stages: List<SleepStageData>): Bitmap {
-            val bmp = Bitmap.createBitmap(CHART_W, CHART_H, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bmp)
-            canvas.drawColor(Color.parseColor("#0D1525"))
-            SleepChartView.drawChartOnCanvas(
-                canvas, stages, CHART_W.toFloat(), CHART_H.toFloat()
-            )
-            return bmp
-        }
-
-        fun updateWidget(
+        private fun showRefreshing(
             context: Context,
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int
@@ -67,33 +53,64 @@ class HealthAppWidget : AppWidgetProvider() {
                 setTextViewText(R.id.tv_updated, "Refreshing…")
                 appWidgetManager.updateAppWidget(appWidgetId, this)
             }
+        }
 
+        private fun heartBitmap(heartRates: List<Int>): Bitmap {
+            val bmp = Bitmap.createBitmap(CHART_W, CHART_H, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            canvas.drawColor(Color.parseColor("#0D1525"))
+            HeartRateChartView.drawChartOnCanvas(canvas, heartRates, CHART_W.toFloat(), CHART_H.toFloat())
+            return bmp
+        }
+
+        private fun sleepBitmap(stages: List<SleepStageData>): Bitmap {
+            val bmp = Bitmap.createBitmap(CHART_W, CHART_H, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            canvas.drawColor(Color.parseColor("#0D1525"))
+            SleepChartView.drawChartOnCanvas(canvas, stages, CHART_W.toFloat(), CHART_H.toFloat())
+            return bmp
+        }
+
+        fun updateWidget(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int
+        ) {
+            showRefreshing(context, appWidgetManager, appWidgetId)
             CoroutineScope(Dispatchers.IO).launch {
-                val manager = HealthConnectManager(context)
-                val views = RemoteViews(context.packageName, R.layout.widget_layout)
-                val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
-
-                if (!manager.isAvailable() || !manager.hasAllPermissions()) {
-                    views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(emptyList()))
-                    views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(emptyList()))
-                    views.setTextViewText(R.id.tv_updated, "Open app to grant permissions")
-                    appWidgetManager.updateAppWidget(appWidgetId, views)
-                    return@launch
-                }
-
-                runCatching {
-                    val data = manager.getLatestHealthData()
-                    views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(data.heartRates))
-                    views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(data.sleepStages))
-                    views.setTextViewText(R.id.tv_updated, "Updated ${fmt.format(Date())}")
-                }.onFailure {
-                    views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(emptyList()))
-                    views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(emptyList()))
-                    views.setTextViewText(R.id.tv_updated, "Sync error")
-                }
-
-                appWidgetManager.updateAppWidget(appWidgetId, views)
+                updateWidgetData(context, appWidgetManager, appWidgetId)
             }
+        }
+
+        suspend fun updateWidgetData(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int
+        ) {
+            val manager = HealthConnectManager(context)
+            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+            if (!manager.isAvailable() || !manager.hasAllPermissions()) {
+                views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(emptyList()))
+                views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(emptyList()))
+                views.setTextViewText(R.id.tv_updated, "Open app to grant permissions")
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+                return
+            }
+
+            runCatching {
+                val data = manager.getLatestHealthData()
+                views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(data.heartRates))
+                views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(data.sleepStages))
+                views.setTextViewText(R.id.tv_updated, "Updated ${fmt.format(Date())}")
+            }.onFailure {
+                views.setImageViewBitmap(R.id.iv_heart_chart, heartBitmap(emptyList()))
+                views.setImageViewBitmap(R.id.iv_sleep_chart, sleepBitmap(emptyList()))
+                views.setTextViewText(R.id.tv_updated, "Sync error")
+            }
+
+            appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }
 }

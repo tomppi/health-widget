@@ -33,21 +33,21 @@ class HealthAppWidget : AppWidgetProvider() {
     }
 
     override fun onEnabled(context: Context) {
-        // First widget added — start both schedulers
         HealthWidgetUpdateWorker.schedule(context)
         AlarmReceiver.schedule(context)
     }
 
     override fun onDisabled(context: Context) {
-        // Last widget removed — stop both schedulers
         HealthWidgetUpdateWorker.cancel(context)
         AlarmReceiver.cancel(context)
     }
 
     companion object {
 
-        private const val CHART_W = 600
-        private const val CHART_H = 140
+        // Reduced from 600x140 to lower memory usage and avoid bitmaps
+        // being reclaimed under memory pressure
+        private const val CHART_W = 360
+        private const val CHART_H = 100
 
         private fun showRefreshing(
             context: Context,
@@ -61,7 +61,7 @@ class HealthAppWidget : AppWidgetProvider() {
         }
 
         private fun heartBitmap(heartRates: List<Int>): Bitmap {
-            val bmp = Bitmap.createBitmap(CHART_W, CHART_H, Bitmap.Config.ARGB_8888)
+            val bmp = Bitmap.createBitmap(CHART_W, CHART_H, Bitmap.Config.RGB_565)
             val canvas = Canvas(bmp)
             canvas.drawColor(Color.parseColor("#0D1525"))
             HeartRateChartView.drawChartOnCanvas(canvas, heartRates, CHART_W.toFloat(), CHART_H.toFloat())
@@ -69,7 +69,7 @@ class HealthAppWidget : AppWidgetProvider() {
         }
 
         private fun sleepBitmap(stages: List<SleepStageData>): Bitmap {
-            val bmp = Bitmap.createBitmap(CHART_W, CHART_H, Bitmap.Config.ARGB_8888)
+            val bmp = Bitmap.createBitmap(CHART_W, CHART_H, Bitmap.Config.RGB_565)
             val canvas = Canvas(bmp)
             canvas.drawColor(Color.parseColor("#0D1525"))
             SleepChartView.drawChartOnCanvas(canvas, stages, CHART_W.toFloat(), CHART_H.toFloat())

@@ -9,7 +9,6 @@ on:
 
 jobs:
 
-  # ─── Build & Unit Test ────────────────────────────────────────────────────
   build:
     name: Build & Test
     runs-on: ubuntu-latest
@@ -25,16 +24,16 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # Zip archives strip Unix permissions, so gradlew must be made
-      # executable explicitly after every fresh checkout.
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      # Validates the wrapper checksum and downloads gradle-wrapper.jar.
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: wrapper
+          gradle-version: '8.6'
+
+      - name: Generate Gradle wrapper
+        run: gradle wrapper --gradle-version 8.6 --distribution-type bin
 
       - name: Run unit tests
         run: ./gradlew test --stacktrace
@@ -55,7 +54,6 @@ jobs:
           name: debug-apk
           path: app/build/outputs/apk/debug/*.apk
 
-  # ─── Release Build (main branch only) ────────────────────────────────────
   release:
     name: Release Build
     runs-on: ubuntu-latest
@@ -79,17 +77,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: wrapper
+          gradle-version: '8.6'
+
+      - name: Generate Gradle wrapper
+        run: gradle wrapper --gradle-version 8.6 --distribution-type bin
 
       - name: Build release APK
         run: ./gradlew assembleRelease --stacktrace
 
-      # ── Sign the APK ──────────────────────────────────────────────────────
-      # Add these four secrets under Settings → Secrets → Actions:
-      #   KEYSTORE_BASE64  → base64 -w 0 your-keystore.jks
-      #   KEY_ALIAS        → your key alias
-      #   KEY_PASSWORD     → key password
-      #   STORE_PASSWORD   → keystore password
       - name: Sign release APK
         if: ${{ env.KEYSTORE_BASE64 != '' }}
         env:
@@ -114,7 +109,6 @@ jobs:
           name: release-apk
           path: app/build/outputs/apk/release/*.apk
 
-      # ── GitHub Release on version tags (e.g. git tag v1.0.0) ─────────────
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
